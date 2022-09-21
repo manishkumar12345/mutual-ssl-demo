@@ -1,0 +1,22 @@
+http:
+  host: "localhost"
+  port: "8081"
+https:
+  host: "localhost"
+  port: "8082"
+  
+client-key-store:
+  key-password: "mulesoft"
+  password: "mulesoft"
+  
+client-trust-store:
+  password: "mulesoft"
+client-password:
+  password: "mulesoft"
+
+activeMq:
+  username: "admin"
+  password: "admin"
+broker:
+  URL: "ssl://0.0.0.0:61617"
+  

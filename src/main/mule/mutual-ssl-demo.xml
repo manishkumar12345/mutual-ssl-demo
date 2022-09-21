@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTPS_Server_Listener_config" doc:name="HTTP Listener config" doc:id="b4442fe8-c1be-4762-943e-cc5cba8d1dcf" >
+		<http:listener-connection host="${https.host}" port="${https.port}" protocol="HTTPS">
+			<tls:context >
+				<tls:trust-store path="server-truststore.jks" password="mulesoft" type="jks" />
+				<tls:key-store type="jks" path="server-keystore.jks" keyPassword="mulesoft" password="mulesoft" alias="mule-server"/>
+			</tls:context>
+		</http:listener-connection>
+	</http:listener-config>
+	<http:request-config name="HTTPS_Client_Request_configuration" doc:name="HTTP Request configuration" doc:id="7f0fd665-aa36-4a11-9c3b-00c01e44a3a0" >
+		<http:request-connection host="${https.host}" port="${https.port}" protocol="HTTPS">
+			<tls:context >
+				<tls:trust-store type="jks" path="client-truststore.jks" password="${client-trust-store.password}"/>
+				<tls:key-store path="client-keystore.jks" keyPassword="${client-key-store.password}" password="${client-password.password}" type="jks" alias="mule-client"/>
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="c9f38f4d-fe29-4e77-89bb-bab1e0bb5f32" >
+		<http:listener-connection host="${http.host}" port="${http.port}" />
+	</http:listener-config>
+	<jms:config name="JMS_Config" doc:name="JMS Config" doc:id="3d27773f-7605-410f-93e4-e1013b414f71" >
+		<jms:active-mq-connection username="${activeMq.username}" password="${activeMq.password}" >
+			<tls:context >
+				<tls:trust-store path="mq-client.ts" password="123456" type="jks" />
+				<tls:key-store type="jks" path="mq-client.ks" alias="mq-client" keyPassword="123456" password="123456" />
+			</tls:context>
+			<jms:factory-configuration brokerUrl="${broker.URL}" />
+		</jms:active-mq-connection>
+	</jms:config>
+	<global-property doc:name="Global Property" doc:id="9f9b7a5e-275a-4d0e-b8b7-cf1198ec22f4" name="env" value="config" />
+	<configuration-properties doc:name="Configuration properties" doc:id="fd716816-7166-411a-bb79-a4ac2b8875ea" file="${env}-dev.yaml" />
+	<flow name="Server-application" doc:id="c89a7e41-571f-4540-bee0-bef98661f889" >
+		<http:listener doc:name="8082:server" doc:id="6627fa9a-dbf1-48e7-9e6a-529bc0883ccf" path="/server" config-ref="HTTPS_Server_Listener_config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="c4d64423-e5a9-42f2-91d6-51352db85c19" message="#['server side']"/>
+		<jms:publish doc:name="Publish message into ActiveMQ" doc:id="9313188f-7794-4b9b-a999-dd59d93ee17f" config-ref="JMS_Config" destination="clientMessage"/>
+		<logger level="INFO" doc:name="Logger" doc:id="725e4b52-60f4-4694-a2bc-b0adfeb09ddd" message="output of consumer : #[payload]"/>
+	</flow>
+	<flow name="mutual-ssl-demoFlow" doc:id="39917e3b-7d0f-495d-90fa-319fb97cfc75" >
+		<jms:listener doc:name="Received " doc:id="e9875f8b-24ae-4368-b3de-ab42457d7e00" config-ref="JMS_Config" destination="testQueue" ackMode="AUTO">
+			<jms:consumer-type >
+				<jms:queue-consumer />
+			</jms:consumer-type>
+		</jms:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="67beef89-d1f2-4ae8-8768-852b80169345" message="#[payload]"/>
+		<ee:transform doc:name="Display message from ActiveMQ" doc:id="cce694a4-f614-4070-bb2b-a32fe342a5d1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="Client-application" doc:id="73f1eb29-c005-445e-892b-d4364b57e55b" >
+		<http:listener doc:name="8081:client " doc:id="934e0eaf-465d-45d6-8f02-35f67134d1f9" path="/client" config-ref="HTTP_Listener_config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="09c47432-80a0-42cc-8daa-0d5a3680f0d6" message="#[payload]"/>
+		<http:request method="POST" doc:name="Request to access the server application resource" doc:id="197b97f5-e390-4083-9e6d-463f372d8c92" config-ref="HTTPS_Client_Request_configuration" path="/server"/>
+	</flow>
+</mule>
